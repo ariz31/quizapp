@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CIVIL SERVICE EXAMINATION REVIEWER</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+
+    :root {
+      --primary-color: #4a90e2; /* Professional Blue */
+      --secondary-color: #50e3c2; /* Bright Teal */
+      --light-bg: #f4f7f9;
+      --white-bg: #ffffff;
+      --dark-text: #333;
+      --light-text: #fff;
+      --correct-bg: #e6ffed;
+      --correct-border: #28a745;
+      --incorrect-bg: #ffebee;
+      --incorrect-border: #dc3545;
+      --warning-bg: #fff8e1;
+      --warning-border: #ffc107;
+      --border-color: #dee2e6;
+      --border-radius: 12px;
+      --box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    html {
+        scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: var(--light-bg);
+      color: var(--dark-text);
+      margin: 0;
+      padding: 15px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+
+    .quiz-container {
+      background-color: var(--white-bg);
+      padding: 25px 30px;
+      border-radius: var(--border-radius);
+      box-shadow: var(--box-shadow);
+      width: 100%;
+      max-width: 800px;
+      text-align: center;
+      transition: all 0.3s ease-in-out;
+      position: relative;
+      overflow: hidden;
+    }
+
+    h1, h2 {
+      color: var(--primary-color);
+      margin-top: 0;
+      margin-bottom: 25px;
+    }
+
+    .screen {
+      display: none;
+    }
+
+    .screen.active {
+      display: block;
+      animation: fadeIn 0.5s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(15px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* --- Setup Screen --- */
+    .setup-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px 20px;
+        text-align: left;
+    }
+    .setup-grid .full-width {
+        grid-column: 1 / -1;
+    }
+    .setup-controls label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      font-size: 0.9em;
+    }
+    .setup-controls select,
+    .setup-controls input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius);
+      box-sizing: border-box;
+      font-size: 1em;
+      background-color: #fff;
+      transition: border-color 0.2s;
+    }
+    .setup-controls select:focus,
+    .setup-controls input:focus {
+        border-color: var(--primary-color);
+        outline: none;
+    }
+
+    /* --- Quiz Screen --- */
+    .quiz-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      gap: 20px;
+    }
+    
+    #question-counter {
+      font-size: 1em;
+      font-weight: 600;
+      color: var(--primary-color);
+      white-space: nowrap;
+    }
+
+    .progress-bar-container {
+      flex-grow: 1;
+      background-color: #e9ecef;
+      border-radius: 10px;
+      height: 10px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--secondary-color), var(--primary-color));
+      transition: width 0.4s ease-in-out;
+    }
+
+    #timer-display-container {
+      font-size: 1.1em;
+      font-weight: 700;
+      color: var(--primary-color);
+      min-width: 60px;
+      text-align: right;
+    }
+    
+    #question-metadata {
+      font-size: 0.8em;
+      color: #6c757d;
+      margin-bottom: 20px;
+      text-transform: capitalize;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+    }
+    #question-metadata span {
+        font-weight: 600;
+    }
+
+    #questionImage {
+      max-width: 100%;
+      max-height: 350px;
+      border-radius: var(--border-radius);
+      margin-bottom: 25px;
+      object-fit: contain;
+    }
+
+    #questionText { 
+      font-size: 1.5em;
+      font-weight: 600;
+      margin-bottom: 30px;
+      line-height: 1.5;
+      text-align: left;
+    }
+
+    .options-container {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-bottom: 25px;
+    }
+
+    .option-btn {
+      background-color: var(--white-bg);
+      border: 2px solid var(--border-color);
+      padding: 15px 20px;
+      font-size: 1.05em;
+      font-family: 'Poppins', sans-serif;
+      cursor: pointer;
+      border-radius: var(--border-radius);
+      transition: all 0.2s ease;
+      text-align: left;
+      width: 100%;
+    }
+    .option-btn:not(:disabled):hover {
+      border-color: var(--primary-color);
+      background-color: #f0f8ff;
+    }
+    .option-btn.correct {
+      background-color: var(--correct-bg);
+      border-color: var(--correct-border);
+      color: #1c7430;
+      font-weight: 600;
+    }
+    .option-btn.incorrect {
+      background-color: var(--incorrect-bg);
+      border-color: var(--incorrect-border);
+      color: #b71c1c;
+      opacity: 0.8;
+    }
+    .option-btn:disabled {
+      cursor: not-allowed;
+    }
+    .option-btn:disabled:not(.correct):not(.incorrect) {
+      opacity: 0.6;
+    }
+
+    .feedback-area {
+      margin-top: 25px;
+      padding: 15px;
+      border-radius: var(--border-radius);
+      font-size: 1em;
+      text-align: left;
+      border: 1px solid;
+      background-color: var(--warning-bg);
+      border-color: var(--warning-border);
+    }
+    .feedback-area p { margin: 5px 0; }
+    .feedback-area strong { font-weight: 600; }
+
+    /* --- Buttons --- */
+    .btn {
+      background: linear-gradient(90deg, var(--primary-color), #3a7bc8);
+      color: var(--light-text);
+      border: none;
+      padding: 14px 30px;
+      font-size: 1.1em;
+      font-weight: 600;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      transition: all 0.2s ease, transform 0.1s ease;
+      margin-top: 15px;
+    }
+    .btn:hover:not(:disabled) {
+      box-shadow: 0 4px 15px rgba(74, 144, 226, 0.4);
+      transform: translateY(-2px);
+    }
+    .btn:disabled { background: #ccc; cursor: not-allowed; box-shadow: none; transform: none;}
+    .controls-area { text-align: right; }
+
+    /* --- Results Screen --- */
+    #results-screen h2 { margin-bottom: 10px; }
+    #user-name-results { font-size: 1.2em; font-weight: 600; margin-bottom: 15px; }
+    #final-score { font-size: 3em; font-weight: 700; color: var(--primary-color); margin: 10px 0 20px; }
+    #score-message { font-size: 1.3em; margin-bottom: 30px; }
+
+    /* --- Loading & Toast --- */
+    .loading-indicator {
+      position: fixed; top: 0; left: 0;
+      width: 100%; height: 100%;
+      background-color: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(4px);
+      display: flex;
+      justify-content: center; align-items: center;
+      z-index: 9999;
+      transition: opacity 0.3s;
+    }
+    .loader {
+      border: 8px solid #f3f3f3;
+      border-top: 8px solid var(--primary-color);
+      border-radius: 50%;
+      width: 60px; height: 60px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    #toast-container {
+      position: fixed; top: 20px; right: 20px; z-index: 10000;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .toast {
+      background-color: var(--dark-text); color: var(--light-text);
+      padding: 15px 20px; border-radius: var(--border-radius);
+      box-shadow: var(--box-shadow);
+      opacity: 0;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      transform: translateX(100%);
+      min-width: 280px; max-width: 350px;
+    }
+    .toast.show { opacity: 1; transform: translateX(0); }
+    .toast.error { background-color: var(--incorrect-border); }
+    .toast.success { background-color: var(--correct-border); }
+    .toast.info { background-color: var(--primary-color); }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 768px) {
+      body { padding: 10px; }
+      .quiz-container { padding: 20px 15px; }
+      #questionText { font-size: 1.3em; }
+    }
+    
+    @media (max-width: 600px) {
+        .setup-grid { grid-template-columns: 1fr; }
+        #questionText { font-size: 1.2em; }
+        .btn { font-size: 1em; padding: 12px 25px; width: 100%; }
+        .controls-area { margin-top: 15px; }
+        .toast { width: calc(100vw - 40px); }
+        #toast-container { top: 10px; right: 10px; left: 10px; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+  <div id="toast-container"></div>
+  <div class="quiz-container">
+    <div id="loadingIndicator" class="loading-indicator">
+      <div class="loader"></div>
+    </div>
+
+    <div id="setupScreen" class="screen">
+      <h1>CIVIL ENGINEERING QUIZ APP</h1>
+      <h1>www.arizval.com</h1>
+      <div class="setup-controls">
+        <div class="setup-grid">
+            <div class="full-width">
+                <label for="userNameInput">Full Name:</label>
+                <input type="text" id="userNameInput" required placeholder="e.g., Juan Dela Cruz">
+            </div>
+            <div class="full-width">
+                <label for="userIdNumberInput">ID Number:</label>
+                <input type="text" id="userIdNumberInput" required placeholder="e.g., 2024-12345">
+            </div>
+            <div>
+                <label for="categorySelect">Category:</label>
+                <select id="categorySelect"></select>
+            </div>
+            <div>
+                <label for="subjectSelect">Subject:</label>
+                <select id="subjectSelect"></select>
+            </div>
+            <div>
+                <label for="topicSelect">Topic:</label>
+                <select id="topicSelect"></select>
+            </div>
+            <div>
+                <label for="numQuestionsSelect">Number of Questions:</label>
+                <select id="numQuestionsSelect">
+                  <option value="5">5</option><option value="10" selected>10</option><option value="15">15</option><option value="20">20</option><option value="25">25</option><option value="50">50</option><option value="100">100</option>
+                </select>
+            </div>
+            <div class="full-width">
+                <label for="timePerQuestionSelect">Time per Question:</label>
+                <select id="timePerQuestionSelect">
+                  <option value="30">30 seconds</option><option value="60" selected>60 seconds</option><option value="90">90 seconds</option><option value="120">120 seconds</option><option value="0">Unlimited</option>
+                </select>
+            </div>
+        </div>
+      </div>
+      <button id="startQuizBtn" class="btn">Start Quiz</button>
+    </div>
+
+    <div id="quizScreen" class="screen">
+      <div class="quiz-header">
+        <div id="question-counter"></div>
+        <div class="progress-bar-container">
+          <div id="progressBar" class="progress-bar"></div>
+        </div>
+        <div id="timer-display-container">--:--</div>
+      </div>
+      <div id="question-metadata">
+        Category: <span id="qCategory"></span> | Subject: <span id="qSubject"></span> | Topic: <span id="qTopic"></span>
+      </div>
+      <img id="questionImage" src="" alt="Question Image" class="hidden">
+      <h2 id="questionText"></h2>
+      <div id="optionsContainer" class="options-container"></div>
+      <div id="feedbackArea" class="feedback-area hidden">
+        <p><strong>Explanation:</strong> <span id="explanationTextEl"></span></p>
+      </div>
+      <div class="controls-area">
+        <button id="nextQuestionBtn" class="btn hidden">Next Question</button>
+      </div>
+    </div>
+
+    <div id="resultsScreen" class="screen">
+      <h2>Quiz Completed!</h2>
+      <p id="userNameResults">Name: <span id="userNameDisplay"></span></p>
+      <p>Your Final Score:</p>
+      <div id="finalScore">0/0</div>
+      <p id="scoreMessage">Well done!</p>
+      <button id="startNewQuizBtn" class="btn">Start New Quiz</button>
+    </div>
+  </div>
+
+<script>
+    // --- State Variables ---
+    let allQuestions = [];
+    let userResponses = [];
+    let currentQuestionIndex = 0;
+    let score = 0;
+    let questionTimerInterval = null;
+    let timeLeft = 0;
+    const quizSettings = {
+        userName: '',
+        userIdNumber: '',
+        timePerQuestion: 60,
+        numQuestions: 10,
+        category: 'All',
+        subject: 'All',
+        topic: 'All'
+    };
+
+    // --- DOM Element Cache ---
+    const dom = {
+      loadingIndicator: document.getElementById('loadingIndicator'),
+      screens: {
+        setup: document.getElementById('setupScreen'),
+        quiz: document.getElementById('quizScreen'),
+        results: document.getElementById('resultsScreen'),
+      },
+      setup: {
+        userNameInput: document.getElementById('userNameInput'),
+        userIdNumberInput: document.getElementById('userIdNumberInput'),
+        categorySelect: document.getElementById('categorySelect'),
+        subjectSelect: document.getElementById('subjectSelect'),
+        topicSelect: document.getElementById('topicSelect'),
+        numQuestionsSelect: document.getElementById('numQuestionsSelect'),
+        timePerQuestionSelect: document.getElementById('timePerQuestionSelect'),
+        startQuizBtn: document.getElementById('startQuizBtn'),
+      },
+      quiz: {
+        progressBar: document.getElementById('progressBar'),
+        timerDisplay: document.getElementById('timer-display-container'),
+        questionCounterText: document.getElementById('question-counter'),
+        qCategoryText: document.getElementById('qCategory'),
+        qSubjectText: document.getElementById('qSubject'),
+        qTopicText: document.getElementById('qTopic'),
+        questionImage: document.getElementById('questionImage'),
+        questionText: document.getElementById('questionText'),
+        optionsContainer: document.getElementById('optionsContainer'),
+        feedbackArea: document.getElementById('feedbackArea'),
+        explanationTextEl: document.getElementById('explanationTextEl'),
+        nextQuestionBtn: document.getElementById('nextQuestionBtn'),
+      },
+      results: {
+        userNameDisplay: document.getElementById('userNameDisplay'),
+        finalScoreText: document.getElementById('finalScore'),
+        scoreMessageText: document.getElementById('scoreMessage'),
+        startNewQuizBtn: document.getElementById('startNewQuizBtn'),
+      }
+    };
+
+    // --- Initialization ---
+    window.addEventListener('load', initializeSetupScreen);
+    
+    function initializeSetupScreen() {
+        showLoading(true);
+        google.script.run
+            .withSuccessHandler(response => {
+                showLoading(false);
+                if (response.success) {
+                    populateFilterDropdowns(response.filterOptions);
+                    showScreen('setup');
+                } else {
+                    handleError(response.error, "Failed to load initial quiz data.");
+                }
+            })
+            .withFailureHandler(err => handleError(err, "Failed to connect to the server."))
+            .getInitialQuizData({ count: 0, randomize: false, category: 'All', subject: 'All', topic: 'All' });
+    }
+
+    // --- Event Listeners ---
+    dom.setup.startQuizBtn.addEventListener('click', startQuiz);
+    dom.quiz.nextQuestionBtn.addEventListener('click', loadNextQuestion);
+    dom.results.startNewQuizBtn.addEventListener('click', resetAndShowSetup);
+
+    // --- Utility: Shuffle array (Fisher-Yates) ---
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
+    // --- Setup & Data Fetching ---
+    function populateFilterDropdowns(filterOptions) {
+        if (!filterOptions) return;
+        const populate = (select, options, defaultText) => {
+            select.innerHTML = `<option value="All">${defaultText}</option>`;
+            if (options && Array.isArray(options)) {
+                options.forEach(opt => select.add(new Option(opt, opt)));
+            }
+        };
+        populate(dom.setup.categorySelect, filterOptions.categories, "All Categories");
+        populate(dom.setup.subjectSelect, filterOptions.subjects, "All Subjects");
+        populate(dom.setup.topicSelect, filterOptions.topics, "All Topics");
+    }
+
+    function startQuiz() {
+        quizSettings.userName = dom.setup.userNameInput.value.trim();
+        quizSettings.userIdNumber = dom.setup.userIdNumberInput.value.trim();
+
+        if (!quizSettings.userName) return showToast("Please enter your Name.", "error");
+        if (!quizSettings.userIdNumber) return showToast("Please enter your ID Number.", "error");
+        
+        quizSettings.timePerQuestion = parseInt(dom.setup.timePerQuestionSelect.value, 10);
+        quizSettings.numQuestions = parseInt(dom.setup.numQuestionsSelect.value, 10);
+        quizSettings.category = dom.setup.categorySelect.value;
+        quizSettings.subject = dom.setup.subjectSelect.value;
+        quizSettings.topic = dom.setup.topicSelect.value;
+
+        const filters = {
+            category: quizSettings.category,
+            subject: quizSettings.subject,
+            topic: quizSettings.topic,
+            count: quizSettings.numQuestions,
+            randomize: true 
+        };
+
+        showLoading(true);
+        google.script.run
+            .withSuccessHandler(handleQuestionsReceived)
+            .withFailureHandler(err => handleError(err, "Failed to fetch questions."))
+            .getInitialQuizData(filters);
+    }
+
+    function handleQuestionsReceived(response) {
+        showLoading(false);
+        if (response && response.success && response.questions && response.questions.length > 0) {
+            allQuestions = response.questions; 
+            if (allQuestions.length < quizSettings.numQuestions) {
+                showToast(`Note: Only found ${allQuestions.length} questions for your selection.`, 'info', 5000);
+            }
+            currentQuestionIndex = 0;
+            score = 0;
+            userResponses = [];
+            showScreen('quiz');
+            displayCurrentQuestion();
+        } else {
+            showToast(response.error || "No questions found. Please adjust filters.", 'error', 6000);
+            if (response.filterOptions) {
+                populateFilterDropdowns(response.filterOptions);
+            }
+        }
+    }
+
+    // --- Quiz Flow & UI ---
+    function displayCurrentQuestion() {
+        stopQuestionTimer();
+        const q = allQuestions[currentQuestionIndex];
+        
+        const progressPercent = ((currentQuestionIndex) / allQuestions.length) * 100;
+        dom.quiz.progressBar.style.width = `${progressPercent}%`;
+        dom.quiz.questionCounterText.textContent = `Question ${currentQuestionIndex + 1} of ${allQuestions.length}`;
+
+        dom.quiz.qCategoryText.textContent = q.category || 'N/A';
+        dom.quiz.qSubjectText.textContent = q.subject || 'N/A';
+        dom.quiz.qTopicText.textContent = q.topic || 'N/A';
+        dom.quiz.questionText.innerHTML = q.questionText; 
+
+        dom.quiz.questionImage.classList.toggle('hidden', !q.imageUrl);
+        dom.quiz.questionImage.src = q.imageUrl || '';
+
+        dom.quiz.optionsContainer.innerHTML = ''; // Clear previous options
+
+        // --- MODIFICATION: Shuffle Options ---
+        let optionsToDisplay = [];
+        // Convert options object to an array of {originalKey, text}
+        Object.keys(q.options).forEach(key => {
+            const optionText = q.options[key];
+            if (optionText && String(optionText).trim() !== "") { // Ensure option text is not empty or just whitespace
+                optionsToDisplay.push({ originalKey: key, text: optionText });
+            }
+        });
+
+        shuffleArray(optionsToDisplay); // Shuffle the array of options
+
+        // Populate options container with shuffled options
+        optionsToDisplay.forEach(optionData => {
+            const button = document.createElement('button');
+            button.className = 'option-btn';
+            // Store the ORIGINAL key (A, B, C, D) for answer processing
+            button.dataset.key = optionData.originalKey; 
+            button.innerHTML = optionData.text; // Display the option text
+            button.addEventListener('click', () => processAnswer(optionData.originalKey), { once: true });
+            dom.quiz.optionsContainer.appendChild(button);
+        });
+        // --- END MODIFICATION ---
+        
+        resetQuestionUI(); // Ensure UI is reset for the new question
+        startQuestionTimer();
+    }
+    
+    function resetQuestionUI() {
+        dom.quiz.feedbackArea.classList.add('hidden');
+        dom.quiz.nextQuestionBtn.classList.add('hidden');
+        document.querySelectorAll('#optionsContainer .option-btn').forEach(btn => {
+            btn.disabled = false;
+            btn.classList.remove('correct', 'incorrect');
+        });
+    }
+
+    function processAnswer(selectedKey, timedOut = false) {
+        stopQuestionTimer();
+        const q = allQuestions[currentQuestionIndex];
+        // selectedKey is the *original* key (A,B,C,D) thanks to dataset.key
+        const isCorrect = q.correctAnswer === selectedKey; 
+
+        if (isCorrect && !timedOut) {
+            score++;
+        }
+
+        userResponses.push({
+            questionId: q.questionId,
+            userAnswer: timedOut ? (selectedKey || "TIMEOUT") : selectedKey, // Store TIMEOUT if timed out without selection
+            isCorrect: isCorrect,
+            timedOut: timedOut
+        });
+
+        document.querySelectorAll('#optionsContainer .option-btn').forEach(btn => {
+            btn.disabled = true; 
+            const originalOptionKey = btn.dataset.key; // Get the original key
+            if (originalOptionKey === q.correctAnswer) {
+                btn.classList.add('correct');
+            } else if (originalOptionKey === selectedKey) { 
+                btn.classList.add('incorrect');
+            }
+        });
+
+        dom.quiz.explanationTextEl.innerHTML = q.explanation; 
+        dom.quiz.feedbackArea.classList.remove('hidden');
+        dom.quiz.nextQuestionBtn.classList.remove('hidden');
+        dom.quiz.nextQuestionBtn.focus();
+    }
+
+    function loadNextQuestion() {
+        currentQuestionIndex++;
+        if (currentQuestionIndex < allQuestions.length) {
+            displayCurrentQuestion();
+        } else {
+            showResults();
+        }
+    }
+
+    function showResults() {
+        stopQuestionTimer();
+        
+        dom.results.userNameDisplay.textContent = quizSettings.userName || "User";
+        dom.results.finalScoreText.textContent = `${score}/${allQuestions.length}`;
+        
+        const percentage = allQuestions.length > 0 ? (score / allQuestions.length) * 100 : 0;
+        if (percentage >= 80) dom.results.scoreMessageText.textContent = "Excellent work! You nailed it!";
+        else if (percentage >= 60) dom.results.scoreMessageText.textContent = "Good job! A solid performance.";
+        else dom.results.scoreMessageText.textContent = "Keep practicing! Every attempt is progress.";
+
+        showScreen('results');
+        
+        submitAllResultsToServer();
+    }
+    
+    function resetAndShowSetup() {
+        allQuestions = [];
+        userResponses = [];
+        currentQuestionIndex = 0;
+        score = 0;
+        stopQuestionTimer();
+
+        dom.quiz.progressBar.style.width = '0%';
+        dom.quiz.questionCounterText.textContent = '';
+        dom.setup.startQuizBtn.disabled = false; 
+        
+        showScreen('setup');
+    }
+
+    function submitAllResultsToServer() {
+        showLoading(true);
+
+        const resultData = {
+            userDetails: {
+                name: quizSettings.userName,
+                idNumber: quizSettings.userIdNumber
+            },
+            quizSummary: {
+                score: score,
+                totalQuestions: allQuestions.length,
+                mode: { 
+                    numQuestions: allQuestions.length, 
+                    timePerQuestion: dom.setup.timePerQuestionSelect.options[dom.setup.timePerQuestionSelect.selectedIndex].text,
+                    category: quizSettings.category,
+                    subject: quizSettings.subject,
+                    topic: quizSettings.topic,
+                }
+            },
+            responses: userResponses
+        };
+        
+        google.script.run
+            .withSuccessHandler(res => {
+                showLoading(false);
+                if (res.success) showToast("Results saved successfully!", 'success');
+                else handleError(res.error, "Failed to save final results.");
+            })
+            .withFailureHandler(err => handleError(err, "Failed to save final results."))
+            .recordFullQuizResults(resultData);
+    }
+
+    // --- Timer ---
+    function startQuestionTimer() {
+        const duration = quizSettings.timePerQuestion;
+        if (duration <= 0) { 
+            dom.quiz.timerDisplay.textContent = 'Unlimited';
+            return;
+        }
+        
+        timeLeft = duration;
+        dom.quiz.timerDisplay.textContent = formatTime(timeLeft);
+        
+        questionTimerInterval = setInterval(() => {
+            timeLeft--;
+            dom.quiz.timerDisplay.textContent = formatTime(timeLeft);
+            if (timeLeft <= 0) {
+                // Try to find if an option was somehow pre-selected (unlikely with {once:true})
+                // For robustness, ensure a null or specific value is passed if no option button has been interacted with.
+                const selectedOptionButton = dom.quiz.optionsContainer.querySelector('.option-btn.selected'); // Assuming you'd add a 'selected' class on click, which you are not.
+                                                                                                               // The current logic handles this by selectedKey being passed to processAnswer
+                processAnswer(null, true); 
+            }
+        }, 1000);
+    }
+
+    function stopQuestionTimer() {
+        clearInterval(questionTimerInterval);
+        questionTimerInterval = null;
+    }
+
+    function formatTime(seconds) {
+        const min = Math.floor(seconds / 60);
+        const sec = seconds % 60;
+        return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+    }
+
+    // --- UI Utilities ---
+    function showScreen(screenId) {
+        Object.values(dom.screens).forEach(s => s.classList.remove('active'));
+        if (dom.screens[screenId]) {
+            dom.screens[screenId].classList.add('active');
+        } else {
+            console.error("Screen ID not found in dom.screens:", screenId);
+        }
+    }
+    
+    function showLoading(isLoading) {
+        dom.loadingIndicator.classList.toggle('hidden', !isLoading);
+    }
+    
+    function handleError(error, userMessage = "An unexpected error occurred.") {
+        showLoading(false);
+        console.error("Quiz App Error:", { userMessage, errorDetails: error });
+        let detail = (error && error.message) ? error.message : (typeof error === 'string' ? error : "See console for details.");
+        showToast(`${userMessage}`, 'error', 8000);
+    }
+    
+    function showToast(message, type = 'info', duration = 4000) {
+        const toastContainer = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        toastContainer.appendChild(toast);
+        setTimeout(() => toast.classList.add('show'), 10); 
+        setTimeout(() => {
+            toast.classList.remove('show');
+            toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+        }, duration);
+    }
+</script>
+</body>
+</html>
