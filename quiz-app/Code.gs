@@ -1,17 +1,20 @@
 /**
- * Civil Engineering Quiz App - Single File Backend
+ * General Quiz App - Single File Backend
  *
  * Copy this single file into Apps Script as Code.gs. It contains setup,
- * question loading, quiz result logging, live question preview, and faculty
- * analytics. QuizPage.html is the only other required Apps Script file.
+ * question loading, quiz result logging, live question preview, faculty
+ * analytics, and generalized prompt templates. QuizPage.html is the only
+ * other required Apps Script file.
  *
- * @version 5.0.0
+ * @version 5.1.0
  * @license MIT
  */
 
 const APP_TITLE = 'Civil Engineering Quiz App';
 const DEFAULT_SPREADSHEET_ID = '1qQw7B6sRrTkbGPViBmYqqaJEqwQr-7P0jeNuPirrgpY';
 const SCRIPT_PROP_SPREADSHEET_ID = 'SPREADSHEET_ID';
+const SCRIPT_PROP_APP_TITLE = 'APP_TITLE';
+const SCRIPT_PROP_APP_SUBJECT = 'APP_SUBJECT';
 
 const QUESTIONS_SHEET_NAME = 'Questions';
 const RESPONSES_SHEET_NAME = 'Responses';
@@ -19,6 +22,7 @@ const USERS_SHEET_NAME = 'Users';
 
 const ALL_VALUE = 'All';
 const MAX_QUESTIONS_PER_RUN = 100;
+const MAX_DIAGNOSTIC_ROWS = 30;
 
 const Q_COL_ID = 'Question ID';
 const Q_COL_CATEGORY = 'Category';
@@ -49,6 +53,21 @@ const QUESTION_HEADERS = [
   Q_COL_ANSWER,
   Q_COL_EXPLANATION,
 ];
+
+const HEADER_ALIASES = {};
+HEADER_ALIASES[Q_COL_ID] = ['QuestionID', 'Question Id', 'ID', 'Item ID', 'ItemID'];
+HEADER_ALIASES[Q_COL_CATEGORY] = ['Area', 'Domain', 'Strand', 'Unit'];
+HEADER_ALIASES[Q_COL_SUBJECT] = ['Course', 'Discipline', 'Subject Name'];
+HEADER_ALIASES[Q_COL_TOPIC] = ['Lesson', 'Subtopic', 'Skill'];
+HEADER_ALIASES[Q_COL_DIFFICULTY] = ['Level', 'Difficulty Level'];
+HEADER_ALIASES[Q_COL_TEXT] = ['Question', 'QuestionText', 'Stem', 'Prompt'];
+HEADER_ALIASES[Q_COL_OPTION_A] = ['Option A', 'Choice A', 'A'];
+HEADER_ALIASES[Q_COL_OPTION_B] = ['Option B', 'Choice B', 'B'];
+HEADER_ALIASES[Q_COL_OPTION_C] = ['Option C', 'Choice C', 'C'];
+HEADER_ALIASES[Q_COL_OPTION_D] = ['Option D', 'Choice D', 'D'];
+HEADER_ALIASES[Q_COL_IMAGE_URL] = ['Image URL', 'Image', 'FigureURL', 'Figure URL'];
+HEADER_ALIASES[Q_COL_ANSWER] = ['Correct Answer', 'CorrectAnswer', 'Key', 'Answer Key'];
+HEADER_ALIASES[Q_COL_EXPLANATION] = ['Rationale', 'Solution', 'Feedback'];
 
 const USER_HEADERS = [
   'Timestamp',
@@ -93,7 +112,7 @@ const RESPONSE_HEADERS = [
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('QuizPage')
-    .setTitle(APP_TITLE)
+    .setTitle(getConfiguredAppTitle_())
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
@@ -105,6 +124,8 @@ function ensureSetup() {
   return {
     success: true,
     message: 'Quiz app setup is ready. Existing rows were preserved. Missing sheets/headers were added only when needed.',
+    appConfig: getAppConfig(),
+    diagnostics: getQuestionBankStats(),
   };
 }
 
@@ -115,6 +136,64 @@ function setSpreadsheetId(spreadsheetId) {
   return ensureSetup();
 }
 
+function setAppConfig(config) {
+  const safeConfig = config || {};
+  const props = PropertiesService.getScriptProperties();
+  const title = String(safeConfig.title || '').trim();
+  const subject = String(safeConfig.subject || '').trim();
+  if (title) props.setProperty(SCRIPT_PROP_APP_TITLE, title);
+  if (subject) props.setProperty(SCRIPT_PROP_APP_SUBJECT, subject);
+  return getAppConfig();
+}
+
+function getAppConfig() {
+  return {
+    success: true,
+    title: getConfiguredAppTitle_(),
+    subject: getConfiguredSubject_(),
+    schemaVersion: '5.1.0',
+    maxQuestionsPerRun: MAX_QUESTIONS_PER_RUN,
+    sheets: {
+      questions: QUESTIONS_SHEET_NAME,
+      users: USERS_SHEET_NAME,
+      responses: RESPONSES_SHEET_NAME,
+    },
+  };
+}
+
+function getPromptTemplates() {
+  return {
+    success: true,
+    templates: {
+      fullQuestionBankGenerator: [
+        'You are an expert assessment designer for [SUBJECT].',
+        'Create [NUMBER] high-quality multiple-choice questions for [LEARNER LEVEL] learners.',
+        'Use this exact semicolon-separated schema:',
+        'Question ID;Category;Subject;Topic;Difficulty;Question Text;OptionA;OptionB;OptionC;OptionD;ImageURL;Answer;Explanation',
+        'Rules: one correct answer, plausible distractors, difficulty as Easy/Normal/Difficult, answer as A/B/C/D, and an instructional explanation.',
+        'Topics: [TOPICS]',
+        'Special constraints: [CONSTRAINTS]',
+      ].join('\n'),
+      qualityReviewer: [
+        'Review this question bank for answer-key correctness, duplicate items, ambiguous wording, weak distractors, and topic coverage.',
+        'Return critical fixes, suggested improvements, rows with likely wrong answers, duplicates, and corrected CSV-ready rows only where needed.',
+        '[PASTE QUESTIONS]',
+      ].join('\n'),
+      difficultyCalibrator: [
+        'Calibrate the difficulty labels in this question bank.',
+        'Easy = recall or one-step application. Normal = multi-step or standard exam application. Difficult = synthesis, traps, or high cognitive load.',
+        'Return only rows whose difficulty should change and explain why.',
+        '[PASTE QUESTIONS]',
+      ].join('\n'),
+      explanationImprover: [
+        'Improve the explanations so learners understand why the correct answer is correct and why tempting wrong options are wrong.',
+        'Keep the same schema and answer key unless the key is clearly incorrect.',
+        '[PASTE QUESTIONS]',
+      ].join('\n'),
+    },
+  };
+}
+
 function getQuestionBankStats() {
   try {
     const bank = getQuestionBank_();
@@ -123,6 +202,8 @@ function getQuestionBankStats() {
       totalQuestions: bank.totalRows,
       validQuestions: bank.questions.length,
       invalidQuestions: bank.invalidQuestions,
+      duplicateQuestionIds: bank.duplicateQuestionIds,
+      invalidQuestionSamples: bank.invalidQuestionSamples,
       byCategory: countBy_(bank.questions, 'category'),
       bySubject: countBy_(bank.questions, 'subject'),
       byTopic: countBy_(bank.questions, 'topic'),
@@ -147,6 +228,8 @@ function getInitialQuizData(filters) {
         filterOptions: filterOptions,
         totalAvailable: 0,
         invalidQuestions: bank.invalidQuestions,
+        duplicateQuestionIds: bank.duplicateQuestionIds,
+        invalidQuestionSamples: bank.invalidQuestionSamples,
         warning: 'No valid questions found yet. Add question rows below the header row.',
       };
     }
@@ -160,6 +243,8 @@ function getInitialQuizData(filters) {
         filterOptions: filterOptions,
         totalAvailable: bank.questions.length,
         invalidQuestions: bank.invalidQuestions,
+        duplicateQuestionIds: bank.duplicateQuestionIds,
+        invalidQuestionSamples: bank.invalidQuestionSamples,
         matchedBeforeSlice: matched.length,
         stats: {
           byCategory: countBy_(matched, 'category'),
@@ -190,6 +275,7 @@ function getInitialQuizData(filters) {
       filterOptions: filterOptions,
       totalAvailable: bank.questions.length,
       invalidQuestions: bank.invalidQuestions,
+      duplicateQuestionIds: bank.duplicateQuestionIds,
       matchedQuestions: questions.length,
       matchedBeforeSlice: matched.length,
     };
@@ -208,6 +294,7 @@ function getQuestionPreview(filters) {
       success: true,
       totalAvailable: bank.questions.length,
       invalidQuestions: bank.invalidQuestions,
+      duplicateQuestionIds: bank.duplicateQuestionIds,
       matchedQuestions: matched.length,
       byCategory: countBy_(matched, 'category'),
       bySubject: countBy_(matched, 'subject'),
@@ -303,24 +390,32 @@ function getQuizAnalytics() {
       byTopic: summarizeAnswerGroups_(answers, 'topic'),
       byDifficulty: summarizeAnswerGroups_(answers, 'difficulty'),
     };
+    const weakAreas = summarizeWeakAreas_(breakdowns);
+    const missedQuestions = summarizeMissedQuestions_(answers);
 
     return {
       success: true,
       generatedAt: formatDateForClient_(new Date()),
+      appConfig: getAppConfig(),
       kpis: buildKpis_(attempts, answers, bank),
       breakdowns: breakdowns,
-      weakAreas: summarizeWeakAreas_(breakdowns).slice(0, 15),
-      topMissedQuestions: summarizeMissedQuestions_(answers).slice(0, 15),
+      weakAreas: weakAreas.slice(0, 15),
+      recommendations: buildRecommendations_(bank, weakAreas, missedQuestions),
+      topMissedQuestions: missedQuestions.slice(0, 15),
       scoreDistribution: summarizeScoreDistribution_(attempts),
       dailyTrend: summarizeDailyTrend_(attempts).slice(-30),
       optionErrorPatterns: summarizeOptionErrorPatterns_(answers).slice(0, 15),
       studentPerformance: summarizeStudents_(attempts).slice(0, 25),
-      recentAttempts: attempts.sort(function(a, b) { return b.timestampMs - a.timestampMs; }).slice(0, 25),
+      recentAttempts: attempts.slice().sort(function(a, b) { return b.timestampMs - a.timestampMs; }).slice(0, 25),
       questionBank: {
         totalRows: bank.totalRows,
         validQuestions: bank.questions.length,
         invalidQuestions: bank.invalidQuestions,
+        duplicateQuestionIds: bank.duplicateQuestionIds,
+        invalidQuestionSamples: bank.invalidQuestionSamples,
         byCategory: countBy_(bank.questions, 'category'),
+        bySubject: countBy_(bank.questions, 'subject'),
+        byTopic: countBy_(bank.questions, 'topic'),
         byDifficulty: countBy_(bank.questions, 'difficulty'),
       },
     };
@@ -339,6 +434,14 @@ function getSpreadsheet_() {
   return SpreadsheetApp.openById(spreadsheetId);
 }
 
+function getConfiguredAppTitle_() {
+  return String(PropertiesService.getScriptProperties().getProperty(SCRIPT_PROP_APP_TITLE) || APP_TITLE).trim() || APP_TITLE;
+}
+
+function getConfiguredSubject_() {
+  return String(PropertiesService.getScriptProperties().getProperty(SCRIPT_PROP_APP_SUBJECT) || 'General Subject').trim() || 'General Subject';
+}
+
 function ensureSheet_(ss, sheetName, requiredHeaders) {
   let sheet = ss.getSheetByName(sheetName);
   if (!sheet) sheet = ss.insertSheet(sheetName);
@@ -347,7 +450,7 @@ function ensureSheet_(ss, sheetName, requiredHeaders) {
     sheet.getRange(1, 1, 1, requiredHeaders.length).setValues([requiredHeaders]);
   } else {
     const currentHeaders = getSheetHeaders_(sheet);
-    const missingHeaders = requiredHeaders.filter(function(header) { return currentHeaders.indexOf(header) === -1; });
+    const missingHeaders = requiredHeaders.filter(function(header) { return !hasHeaderEquivalent_(currentHeaders, header); });
     if (missingHeaders.length) sheet.getRange(1, currentHeaders.length + 1, 1, missingHeaders.length).setValues([missingHeaders]);
   }
 
@@ -387,11 +490,11 @@ function getQuestionBank_() {
   const sheet = ss.getSheetByName(QUESTIONS_SHEET_NAME);
   if (!sheet || sheet.getLastRow() < 1) {
     ensureSheet_(ss, QUESTIONS_SHEET_NAME, QUESTION_HEADERS);
-    return { questions: [], totalRows: 0, invalidQuestions: 0 };
+    return buildQuestionBankResult_([], 0, []);
   }
 
   const values = sheet.getDataRange().getValues();
-  if (values.length <= 1) return { questions: [], totalRows: 0, invalidQuestions: 0 };
+  if (values.length <= 1) return buildQuestionBankResult_([], 0, []);
 
   const headers = values[0];
   const colMap = getColumnMap_(headers);
@@ -399,17 +502,57 @@ function getQuestionBank_() {
   if (missing.length) throw new Error('Questions sheet is missing required columns: ' + missing.join(', '));
 
   const rows = values.slice(1);
-  const questions = rows.map(function(row) { return rowToQuestion_(row, colMap); }).filter(Boolean);
-  return { questions: questions, totalRows: rows.length, invalidQuestions: rows.length - questions.length };
+  const validQuestions = [];
+  const invalidSamples = [];
+
+  rows.forEach(function(row, index) {
+    const result = rowToQuestionResult_(row, colMap, index + 2);
+    if (result.question) validQuestions.push(result.question);
+    else if (invalidSamples.length < MAX_DIAGNOSTIC_ROWS) invalidSamples.push(result.error);
+  });
+
+  return buildQuestionBankResult_(validQuestions, rows.length, invalidSamples);
+}
+
+function buildQuestionBankResult_(questions, totalRows, invalidSamples) {
+  const duplicates = findDuplicateValues_(questions.map(function(question) { return question.questionId; }));
+  return {
+    questions: questions,
+    totalRows: totalRows,
+    invalidQuestions: Math.max(totalRows - questions.length, 0),
+    duplicateQuestionIds: duplicates,
+    invalidQuestionSamples: invalidSamples || [],
+  };
 }
 
 function getColumnMap_(headers) {
+  const rawMap = {};
   const map = {};
   headers.forEach(function(header, index) {
     const cleanHeader = String(header || '').trim();
-    if (cleanHeader) map[cleanHeader] = index;
+    if (cleanHeader && rawMap[cleanHeader] === undefined) rawMap[cleanHeader] = index;
   });
+
+  Object.keys(rawMap).forEach(function(header) {
+    map[header] = rawMap[header];
+  });
+
+  QUESTION_HEADERS.forEach(function(canonicalHeader) {
+    const candidates = [canonicalHeader].concat(HEADER_ALIASES[canonicalHeader] || []);
+    for (let i = 0; i < candidates.length; i++) {
+      if (rawMap[candidates[i]] !== undefined) {
+        map[canonicalHeader] = rawMap[candidates[i]];
+        break;
+      }
+    }
+  });
+
   return map;
+}
+
+function hasHeaderEquivalent_(headers, canonicalHeader) {
+  const candidates = [canonicalHeader].concat(HEADER_ALIASES[canonicalHeader] || []);
+  return headers.some(function(header) { return candidates.indexOf(String(header || '').trim()) !== -1; });
 }
 
 function getMissingRequiredQuestionColumns_(colMap) {
@@ -418,13 +561,17 @@ function getMissingRequiredQuestionColumns_(colMap) {
 }
 
 function rowToQuestion_(row, colMap) {
+  return rowToQuestionResult_(row, colMap, 0).question;
+}
+
+function rowToQuestionResult_(row, colMap, rowNumber) {
   const answer = getCell_(row, colMap, Q_COL_ANSWER).toUpperCase();
   const question = {
     questionId: getCell_(row, colMap, Q_COL_ID),
-    category: getCell_(row, colMap, Q_COL_CATEGORY),
-    subject: getCell_(row, colMap, Q_COL_SUBJECT),
-    topic: getCell_(row, colMap, Q_COL_TOPIC),
-    difficulty: getCell_(row, colMap, Q_COL_DIFFICULTY) || 'Unspecified',
+    category: getCell_(row, colMap, Q_COL_CATEGORY) || 'General',
+    subject: getCell_(row, colMap, Q_COL_SUBJECT) || getConfiguredSubject_(),
+    topic: getCell_(row, colMap, Q_COL_TOPIC) || 'General',
+    difficulty: normalizeDifficulty_(getCell_(row, colMap, Q_COL_DIFFICULTY) || 'Unspecified'),
     questionText: getCell_(row, colMap, Q_COL_TEXT),
     options: {
       A: getCell_(row, colMap, Q_COL_OPTION_A),
@@ -437,10 +584,13 @@ function rowToQuestion_(row, colMap) {
     imageUrl: getCell_(row, colMap, Q_COL_IMAGE_URL),
   };
 
-  if (!question.questionId || !question.questionText) return null;
-  if (!question.options.A || !question.options.B || !question.options.C || !question.options.D) return null;
-  if (['A', 'B', 'C', 'D'].indexOf(question.correctAnswer) === -1) return null;
-  return question;
+  const prefix = rowNumber ? 'Row ' + rowNumber + ': ' : '';
+  if (!question.questionId) return { question: null, error: prefix + 'missing Question ID.' };
+  if (!question.questionText) return { question: null, error: prefix + 'missing Question Text.' };
+  if (!question.options.A || !question.options.B || !question.options.C || !question.options.D) return { question: null, error: prefix + 'all four options are required.' };
+  if (['A', 'B', 'C', 'D'].indexOf(question.correctAnswer) === -1) return { question: null, error: prefix + 'Answer must be A, B, C, or D.' };
+
+  return { question: question, error: '' };
 }
 
 function getCell_(row, colMap, columnName) {
@@ -502,6 +652,16 @@ function normalizeFilters_(filters) {
 function normalizeFilterValue_(value) {
   const cleanValue = String(value || ALL_VALUE).trim();
   return cleanValue || ALL_VALUE;
+}
+
+function normalizeDifficulty_(value) {
+  const cleanValue = String(value || '').trim();
+  const lower = cleanValue.toLowerCase();
+  if (!cleanValue) return 'Unspecified';
+  if (lower === 'medium' || lower === 'moderate' || lower === 'average') return 'Normal';
+  if (lower === 'hard' || lower === 'advanced') return 'Difficult';
+  if (lower === 'simple' || lower === 'basic') return 'Easy';
+  return cleanValue;
 }
 
 function matchesFilter_(actual, expected) {
@@ -639,6 +799,7 @@ function buildKpis_(attempts, answers, bank) {
     markedForReviewRate: answers.length ? round2_(marked / answers.length * 100) : 0,
     validQuestions: bank.questions.length,
     invalidQuestionRows: bank.invalidQuestions,
+    duplicateQuestionIds: bank.duplicateQuestionIds.length,
   };
 }
 
@@ -827,6 +988,16 @@ function summarizeStudents_(attempts) {
   }).sort(function(a, b) { return b.averagePercentage - a.averagePercentage; });
 }
 
+function buildRecommendations_(bank, weakAreas, missedQuestions) {
+  const recommendations = [];
+  if (bank.invalidQuestions) recommendations.push('Fix invalid question rows before high-stakes use. Open setup diagnostics to inspect missing fields or invalid answer keys.');
+  if (bank.duplicateQuestionIds.length) recommendations.push('Rename duplicate Question IDs so analytics can map responses to the correct item.');
+  if (weakAreas.length) recommendations.push('Prioritize review for: ' + weakAreas.slice(0, 3).map(function(item) { return item.type + ' ' + item.label; }).join(', ') + '.');
+  if (missedQuestions.length) recommendations.push('Review the top missed questions and improve explanations or distractors if the miss rate is unexpectedly high.');
+  if (!recommendations.length) recommendations.push('Question bank and attempt analytics look healthy. Continue adding balanced questions across topics and difficulty levels.');
+  return recommendations;
+}
+
 function parseScore_(scoreValue, totalValue) {
   const total = Number(totalValue) || 0;
   if (typeof scoreValue === 'string' && scoreValue.indexOf('/') !== -1) {
@@ -863,6 +1034,15 @@ function uniqueCount_(values) {
   const seen = {};
   values.forEach(function(value) { if (value) seen[value] = true; });
   return Object.keys(seen).length;
+}
+
+function findDuplicateValues_(values) {
+  const counts = {};
+  values.forEach(function(value) {
+    const clean = String(value || '').trim();
+    if (clean) counts[clean] = (counts[clean] || 0) + 1;
+  });
+  return Object.keys(counts).filter(function(value) { return counts[value] > 1; }).sort();
 }
 
 function normalizeDateString_(value) {
