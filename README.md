@@ -1,6 +1,6 @@
 # Civil Engineering Quiz App
 
-A Google Apps Script quiz web app for Civil Engineering board exam review. This version is optimized for simple copy-paste setup by less technical users, following the same repository style as the Peer Evaluation Google Apps Script app.
+A Google Apps Script quiz web app for Civil Engineering board exam review. The repository is optimized for simple copy-paste setup by less technical users and now keeps only deployable app files plus project essentials.
 
 **Live Environment:** [Civil Engineering Quiz App](https://www.arizval.com/civil-engineering/applications/civil-engineering-quiz-app)
 
@@ -11,11 +11,7 @@ You only need two app files:
 - `quiz-app/Code.gs` - all backend logic in one file
 - `quiz-app/QuizPage.html` - student quiz setup, quiz-taking UI, feedback modes, timer, review screen, and results screen
 
-Optional supporting file:
-
-- `quiz-app/ai prompts/ce quiz maker.txt` - prompt/instructions for generating spreadsheet-ready Civil Engineering quiz questions
-
-No extra `.gs` helper files are required.
+No extra `.gs` helper files, prompt files, or legacy artifacts are required.
 
 ## What the app does
 
@@ -44,11 +40,12 @@ No extra `.gs` helper files are required.
 - Safer frontend rendering using `textContent` instead of injecting question text with `innerHTML`
 - Mobile-first card layout with accessible buttons, focus states, status panel, and toast messages
 - Feedback Mode selector: instant feedback or end-of-quiz explanations
-- Results review list showing correctness, answer, correct answer, explanation, review mark, and time spent
+- Results review list showing correctness, selected answer, correct answer, explanation, review mark, and time spent
 - Retry Missed Questions flow for focused practice
 - Local browser memory for student name and ID number
 - Keyboard shortcuts: press `A`, `B`, `C`, or `D` to answer; press `Enter` to continue after answering
 - Expanded response logs for analytics: question number, marked-for-review flag, time spent, quiz duration, accuracy band, and feedback mode
+- Legacy prompt artifact removed
 - Root `.gitignore` and MIT `LICENSE`
 
 ## Sheet structure
@@ -84,31 +81,21 @@ Stores one row per answered question. Newer installs include question number, se
 2. Open **Extensions > Apps Script**.
 3. Replace the default `Code.gs` with `quiz-app/Code.gs`.
 4. Add an HTML file named `QuizPage` and paste `quiz-app/QuizPage.html`.
-5. In `Code.gs`, either:
-   - replace `DEFAULT_SPREADSHEET_ID` with your Sheet ID, or
-   - run `setSpreadsheetId('YOUR_SHEET_ID')` once from the Apps Script editor.
+5. In `Code.gs`, either replace `DEFAULT_SPREADSHEET_ID` with your Sheet ID or run `setSpreadsheetId('YOUR_SHEET_ID')` once.
 6. Run `ensureSetup()` once and approve permissions.
 7. Add or import questions into the `Questions` sheet.
 8. Deploy as a web app.
 9. Open the web app URL to use the quiz.
 
-## Deployment settings
+## Question import workflow
 
-Recommended Google Apps Script deployment settings:
-
-- **Type:** Web app
-- **Execute as:** Me
-- **Who has access:** Anyone, or your selected school/user group
-
-## Question generation workflow
-
-Use `quiz-app/ai prompts/ce quiz maker.txt` to generate rows for the `Questions` sheet. The expected output format is semicolon-delimited and should match this column order:
+Prepare your question bank using the `Questions` sheet headers. Rows may be typed directly, pasted from a spreadsheet, or imported from a CSV using this column order:
 
 ```text
 Question ID;Category;Subject;Topic;Difficulty;Question Text;OptionA;OptionB;OptionC;OptionD;ImageURL;Answer;Explanation
 ```
 
-After generating questions, paste/import them into the `Questions` sheet using the same headers.
+After importing, run the web app setup screen and verify the valid/invalid question counts before allowing students to take the quiz.
 
 ## Data preservation
 
