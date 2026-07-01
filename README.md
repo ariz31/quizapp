@@ -9,7 +9,7 @@ A Google Apps Script quiz web app for Civil Engineering board exam review. This 
 You only need two app files:
 
 - `quiz-app/Code.gs` - all backend logic in one file
-- `quiz-app/QuizPage.html` - student quiz setup, quiz-taking UI, feedback, timer, and results screen
+- `quiz-app/QuizPage.html` - student quiz setup, quiz-taking UI, feedback modes, timer, review screen, and results screen
 
 Optional supporting file:
 
@@ -22,8 +22,12 @@ No extra `.gs` helper files are required.
 - Loads questions from a Google Sheet
 - Lets students filter by Category, Subject, Topic, and Difficulty
 - Supports timed or unlimited quiz attempts
+- Supports **Instant Feedback** mode and **Exam Mode**
 - Randomizes question order and answer choices
-- Shows instant feedback and explanations
+- Allows students to mark questions for review
+- Tracks time spent per question
+- Shows a full answer review after completion
+- Lets students retry missed questions locally after a completed attempt
 - Saves quiz summaries to the `Users` sheet
 - Saves per-question answers to the `Responses` sheet
 - Uses `LockService` and batch writes for safer concurrent submissions
@@ -35,15 +39,21 @@ No extra `.gs` helper files are required.
 - Optional `setSpreadsheetId('YOUR_SHEET_ID')` helper for non-technical setup
 - Required sheet/header creation without deleting existing data
 - Difficulty-aware question filtering
+- Question-bank stats endpoint with valid/invalid row counts
 - Safer result payload validation before saving
 - Safer frontend rendering using `textContent` instead of injecting question text with `innerHTML`
 - Mobile-first card layout with accessible buttons, focus states, status panel, and toast messages
-- Clear save status on the results screen
+- Feedback Mode selector: instant feedback or end-of-quiz explanations
+- Results review list showing correctness, answer, correct answer, explanation, review mark, and time spent
+- Retry Missed Questions flow for focused practice
+- Local browser memory for student name and ID number
+- Keyboard shortcuts: press `A`, `B`, `C`, or `D` to answer; press `Enter` to continue after answering
+- Expanded response logs for analytics: question number, marked-for-review flag, time spent, quiz duration, accuracy band, and feedback mode
 - Root `.gitignore` and MIT `LICENSE`
 
 ## Sheet structure
 
-Create a Google Sheet with these tabs. Running `ensureSetup()` will create missing tabs and headers automatically.
+Create a Google Sheet with these tabs. Running `ensureSetup()` will create missing tabs and headers automatically. It will not delete existing rows.
 
 ### `Questions`
 
@@ -62,11 +72,11 @@ Rules:
 
 ### `Users`
 
-Stores one row per completed quiz attempt, including name, ID number, total score, percentage, selected filters, and quiz mode.
+Stores one row per completed quiz attempt. Newer installs include started/submitted time, quiz duration, score, percentage, accuracy band, selected filters, feedback mode, and quiz mode JSON.
 
 ### `Responses`
 
-Stores one row per answered question, including selected answer, correct answer, correctness, timeout status, and metadata.
+Stores one row per answered question. Newer installs include question number, selected answer, correct answer, correctness, timeout status, marked-for-review status, time spent, and metadata.
 
 ## Setup
 
@@ -99,6 +109,15 @@ Question ID;Category;Subject;Topic;Difficulty;Question Text;OptionA;OptionB;Opti
 ```
 
 After generating questions, paste/import them into the `Questions` sheet using the same headers.
+
+## Data preservation
+
+This repository is designed to preserve existing spreadsheet data:
+
+- `ensureSetup()` creates missing tabs only when needed.
+- Missing headers are appended to the end of the header row.
+- Existing rows are not cleared, replaced, or reordered.
+- New analytics fields are additive, so older rows can stay in place.
 
 ## Important
 
