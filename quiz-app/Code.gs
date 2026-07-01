@@ -4,7 +4,7 @@
  * Copy this single file into Apps Script as Code.gs. The app uses one Google
  * Sheet as its database and serves QuizPage.html as the student quiz portal.
  *
- * @version 4.0.0
+ * @version 4.1.0
  * @license MIT
  */
 
@@ -51,16 +51,21 @@ const QUESTION_HEADERS = [
 
 const USER_HEADERS = [
   'Timestamp',
+  'Started At',
+  'Submitted At',
+  'Duration Seconds',
   'Name',
   'ID Number',
   'Total Score',
   'Total Questions',
   'Percentage',
+  'Accuracy Band',
   'Category',
   'Subject',
   'Topic',
   'Difficulty',
   'Time Per Question',
+  'Feedback Mode',
   'Quiz Identifier',
   'Mode',
 ];
@@ -70,6 +75,7 @@ const RESPONSE_HEADERS = [
   'Name',
   'ID Number',
   'QuizIdentifier',
+  'QuestionNumber',
   'QuestionID',
   'Category',
   'Subject',
@@ -80,6 +86,8 @@ const RESPONSE_HEADERS = [
   'IsCorrect',
   'ScoreAwarded',
   'TimedOut',
+  'MarkedForReview',
+  'TimeSpentSeconds',
 ];
 
 function doGet() {
@@ -100,7 +108,7 @@ function ensureSetup() {
 
   return {
     success: true,
-    message: 'Quiz app setup is ready. Add questions to the Questions sheet, then deploy the web app.',
+    message: 'Quiz app setup is ready. Existing rows were preserved. Missing sheets/headers were added only when needed.',
   };
 }
 
@@ -115,6 +123,49 @@ function setSpreadsheetId(spreadsheetId) {
   }
   PropertiesService.getScriptProperties().setProperty(SCRIPT_PROP_SPREADSHEET_ID, cleanId);
   return ensureSetup();
+}
+
+/**
+ * Returns a lightweight question-bank summary for setup diagnostics.
+ */
+function getQuestionBankStats() {
+  try {
+    const ss = getSpreadsheet_();
+    const sheet = ensureSheet_(ss, QUESTIONS_SHEET_NAME, QUESTION_HEADERS);
+    const values = sheet.getDataRange().getValues();
+    if (values.length <= 1) {
+      return {
+        success: true,
+        totalQuestions: 0,
+        validQuestions: 0,
+        invalidQuestions: 0,
+        byCategory: {},
+        byDifficulty: {},
+      };
+    }
+
+    const headers = values[0];
+    const colMap = getColumnMap_(headers);
+    const questions = values.slice(1).map(function(row) {
+      return rowToQuestion_(row, colMap);
+    });
+    const validQuestions = questions.filter(Boolean);
+
+    return {
+      success: true,
+      totalQuestions: values.length - 1,
+      validQuestions: validQuestions.length,
+      invalidQuestions: (values.length - 1) - validQuestions.length,
+      byCategory: countBy_(validQuestions, 'category'),
+      byDifficulty: countBy_(validQuestions, 'difficulty'),
+    };
+  } catch (error) {
+    Logger.log('Error in getQuestionBankStats: ' + error.toString() + '\nStack: ' + error.stack);
+    return {
+      success: false,
+      error: 'Server error while reading question-bank stats: ' + error.message,
+    };
+  }
 }
 
 /**
@@ -158,8 +209,8 @@ function getInitialQuizData(filters) {
       };
     }
 
-    const questions = values
-      .slice(1)
+    const allRows = values.slice(1);
+    const questions = allRows
       .map(function(row) {
         return rowToQuestion_(row, colMap);
       })
@@ -173,6 +224,11 @@ function getInitialQuizData(filters) {
         questions: [],
         filterOptions: filterOptions,
         totalAvailable: questions.length,
+        invalidQuestions: allRows.length - questions.length,
+        stats: {
+          byCategory: countBy_(questions, 'category'),
+          byDifficulty: countBy_(questions, 'difficulty'),
+        },
       };
     }
 
@@ -182,6 +238,8 @@ function getInitialQuizData(filters) {
         && matchesFilter_(question.topic, safeFilters.topic)
         && matchesFilter_(question.difficulty, safeFilters.difficulty);
     });
+
+    const matchedBeforeSlice = filtered.length;
 
     if (!filtered.length) {
       return {
@@ -204,6 +262,7 @@ function getInitialQuizData(filters) {
       filterOptions: filterOptions,
       totalAvailable: questions.length,
       matchedQuestions: filtered.length,
+      matchedBeforeSlice: matchedBeforeSlice,
     };
   } catch (error) {
     Logger.log('Error in getInitialQuizData: ' + error.toString() + '\nStack: ' + error.stack);
@@ -243,27 +302,33 @@ function recordFullQuizResults(data) {
 
     appendObjectRows_(usersSheet, [{
       'Timestamp': timestamp,
+      'Started At': payload.startedAt || '',
+      'Submitted At': payload.submittedAt || timestamp,
+      'Duration Seconds': payload.durationSeconds,
       'Name': payload.user.name,
       'ID Number': payload.user.idNumber,
       'Total Score': payload.score,
       'Total Questions': payload.totalQuestions,
       'Percentage': percentage,
+      'Accuracy Band': getAccuracyBand_(percentage),
       'Category': payload.mode.category,
       'Subject': payload.mode.subject,
       'Topic': payload.mode.topic,
       'Difficulty': payload.mode.difficulty,
       'Time Per Question': payload.mode.timePerQuestion,
+      'Feedback Mode': payload.mode.feedbackMode,
       'Quiz Identifier': quizIdentifier,
       'Mode': JSON.stringify(payload.mode),
     }]);
 
     if (payload.responses.length) {
-      const responseRows = payload.responses.map(function(response) {
+      const responseRows = payload.responses.map(function(response, index) {
         return {
           'Timestamp': timestamp,
           'Name': payload.user.name,
           'ID Number': payload.user.idNumber,
           'QuizIdentifier': quizIdentifier,
+          'QuestionNumber': response.questionNumber || index + 1,
           'QuestionID': response.questionId,
           'Category': response.category,
           'Subject': response.subject,
@@ -274,6 +339,8 @@ function recordFullQuizResults(data) {
           'IsCorrect': response.isCorrect,
           'ScoreAwarded': response.isCorrect ? 1 : 0,
           'TimedOut': response.timedOut,
+          'MarkedForReview': response.markedForReview,
+          'TimeSpentSeconds': response.timeSpentSeconds,
         };
       });
       appendObjectRows_(responsesSheet, responseRows);
@@ -451,6 +518,15 @@ function uniqueSorted_(values) {
   });
 }
 
+function countBy_(items, key) {
+  const counts = {};
+  items.forEach(function(item) {
+    const value = String(item[key] || 'Unspecified').trim() || 'Unspecified';
+    counts[value] = (counts[value] || 0) + 1;
+  });
+  return counts;
+}
+
 function normalizeFilters_(filters) {
   const rawCount = Number(filters.count);
   const setupOnly = Boolean(filters.setupOnly) || rawCount <= 0;
@@ -482,6 +558,8 @@ function normalizeResultPayload_(data) {
   const responses = Array.isArray(data.responses) ? data.responses : [];
   const score = clamp_(Number(quizSummary.score) || 0, 0, Number(quizSummary.totalQuestions) || responses.length || 0);
   const totalQuestions = Math.max(Number(quizSummary.totalQuestions) || responses.length || 0, responses.length);
+  const startedAt = normalizeDateString_(data.startedAt);
+  const submittedAt = normalizeDateString_(data.submittedAt) || new Date();
 
   const normalized = {
     user: {
@@ -490,6 +568,9 @@ function normalizeResultPayload_(data) {
     },
     score: score,
     totalQuestions: totalQuestions,
+    startedAt: startedAt,
+    submittedAt: submittedAt,
+    durationSeconds: clamp_(Number(data.durationSeconds) || 0, 0, 86400),
     mode: {
       numQuestions: Number(mode.numQuestions) || totalQuestions,
       timePerQuestion: String(mode.timePerQuestion || '').trim(),
@@ -497,6 +578,7 @@ function normalizeResultPayload_(data) {
       subject: normalizeFilterValue_(mode.subject),
       topic: normalizeFilterValue_(mode.topic),
       difficulty: normalizeFilterValue_(mode.difficulty),
+      feedbackMode: String(mode.feedbackMode || 'Instant feedback').trim(),
     },
     responses: responses.map(normalizeResponse_).filter(Boolean),
   };
@@ -518,6 +600,7 @@ function normalizeResponse_(response) {
   const correctAnswer = String(response.correctAnswer || '').trim().toUpperCase();
 
   return {
+    questionNumber: clamp_(Number(response.questionNumber) || 0, 0, MAX_QUESTIONS_PER_RUN),
     questionId: String(response.questionId || '').trim(),
     category: String(response.category || '').trim(),
     subject: String(response.subject || '').trim(),
@@ -527,7 +610,23 @@ function normalizeResponse_(response) {
     correctAnswer: correctAnswer,
     isCorrect: Boolean(response.isCorrect),
     timedOut: Boolean(response.timedOut),
+    markedForReview: Boolean(response.markedForReview),
+    timeSpentSeconds: clamp_(Number(response.timeSpentSeconds) || 0, 0, 86400),
   };
+}
+
+function normalizeDateString_(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return '';
+  return date;
+}
+
+function getAccuracyBand_(percentage) {
+  if (percentage >= 85) return 'Excellent';
+  if (percentage >= 70) return 'Good';
+  if (percentage >= 50) return 'Needs Review';
+  return 'Needs Practice';
 }
 
 function clamp_(value, min, max) {
