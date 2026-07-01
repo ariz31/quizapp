@@ -1,20 +1,15 @@
 # Civil Engineering Quiz App
 
-A Google Apps Script quiz web app for Civil Engineering board exam review. The repository is optimized for simple copy-paste setup and keeps only deployable app files plus project essentials.
+A Google Apps Script quiz web app for Civil Engineering board exam review. The repository is optimized for simple copy-paste setup.
 
 **Live Environment:** [Civil Engineering Quiz App](https://www.arizval.com/civil-engineering/applications/civil-engineering-quiz-app)
 
 ## Files to copy into Apps Script
 
-Copy these app files into Apps Script:
+Copy only these files into Apps Script:
 
-- `quiz-app/Code.gs`
-- `quiz-app/QuizPage.html`
-- `quiz-app/Analytics.gs`
-- `quiz-app/AnalyticsAdvanced.gs`
-- `quiz-app/ZZ_AnalyticsDashboard.gs`
-
-No legacy prompt files or documentation-only folders are required.
+- `quiz-app/Code.gs` - single backend file with setup, question loading, result logging, live preview, and analytics
+- `quiz-app/QuizPage.html` - student quiz UI, feedback modes, timer, review screen, and analytics UI
 
 ## What the app does
 
@@ -34,7 +29,7 @@ No legacy prompt files or documentation-only folders are required.
 - Uses `LockService` and batch writes for safer concurrent submissions
 - Works on desktop and mobile layouts
 
-## Analytics improvements
+## Analytics included in `Code.gs`
 
 - Live filter preview through `getQuestionPreview()`
 - Dashboard through `getQuizAnalytics()`
@@ -72,13 +67,12 @@ Stores one row per answered question.
 1. Create a new Google Sheet.
 2. Open Extensions > Apps Script.
 3. Replace the default `Code.gs` with `quiz-app/Code.gs`.
-4. Add script files for `Analytics`, `AnalyticsAdvanced`, and `ZZ_AnalyticsDashboard`, then paste the matching files.
-5. Add an HTML file named `QuizPage` and paste `quiz-app/QuizPage.html`.
-6. In `Code.gs`, either replace `DEFAULT_SPREADSHEET_ID` with your Sheet ID or run `setSpreadsheetId('YOUR_SHEET_ID')` once.
-7. Run `ensureSetup()` once and approve permissions.
-8. Add or import questions into the `Questions` sheet.
-9. Deploy as a web app.
-10. Open the web app URL to use the quiz and analytics dashboard.
+4. Add an HTML file named `QuizPage` and paste `quiz-app/QuizPage.html`.
+5. In `Code.gs`, either replace `DEFAULT_SPREADSHEET_ID` with your Sheet ID or run `setSpreadsheetId('YOUR_SHEET_ID')` once.
+6. Run `ensureSetup()` once and approve permissions.
+7. Add or import questions into the `Questions` sheet.
+8. Deploy as a web app.
+9. Open the web app URL to use the quiz and analytics dashboard.
 
 ## Data preservation
 
@@ -86,7 +80,7 @@ Stores one row per answered question.
 - Missing headers are appended to the end of the header row.
 - Existing rows are not cleared, replaced, or reordered.
 - New analytics fields are additive, so older rows can stay in place.
-- Analytics files read existing rows and return summaries; they do not write to the spreadsheet.
+- Analytics in `Code.gs` reads existing rows and returns summaries; it does not write to the spreadsheet.
 
 ## Important
 
