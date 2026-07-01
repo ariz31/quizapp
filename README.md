@@ -11,11 +11,7 @@ You only need two app files:
 - `quiz-app/Code.gs` - all backend logic in one file
 - `quiz-app/QuizPage.html` - student quiz setup, quiz-taking UI, feedback modes, timer, review screen, and results screen
 
-Optional supporting file:
-
-- `quiz-app/ai prompts/ce quiz maker.txt` - prompt/instructions for generating spreadsheet-ready Civil Engineering quiz questions
-
-No extra `.gs` helper files are required.
+No extra `.gs` helper files, AI prompt files, or legacy artifacts are required.
 
 ## What the app does
 
@@ -49,6 +45,7 @@ No extra `.gs` helper files are required.
 - Local browser memory for student name and ID number
 - Keyboard shortcuts: press `A`, `B`, `C`, or `D` to answer; press `Enter` to continue after answering
 - Expanded response logs for analytics: question number, marked-for-review flag, time spent, quiz duration, accuracy band, and feedback mode
+- Legacy prompt artifacts removed so the repository only contains deployable app files and project essentials
 - Root `.gitignore` and MIT `LICENSE`
 
 ## Sheet structure
@@ -100,15 +97,15 @@ Recommended Google Apps Script deployment settings:
 - **Execute as:** Me
 - **Who has access:** Anyone, or your selected school/user group
 
-## Question generation workflow
+## Question import workflow
 
-Use `quiz-app/ai prompts/ce quiz maker.txt` to generate rows for the `Questions` sheet. The expected output format is semicolon-delimited and should match this column order:
+Prepare your question bank using the `Questions` sheet headers. Rows may be typed directly, pasted from a spreadsheet, or imported from a CSV using the same column order:
 
 ```text
 Question ID;Category;Subject;Topic;Difficulty;Question Text;OptionA;OptionB;OptionC;OptionD;ImageURL;Answer;Explanation
 ```
 
-After generating questions, paste/import them into the `Questions` sheet using the same headers.
+After importing, run the web app setup screen and verify the valid/invalid question counts before allowing students to take the quiz.
 
 ## Data preservation
 
