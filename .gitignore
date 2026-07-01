@@ -1,0 +1,27 @@
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs and temporary files
+*.log
+.tmp/
+tmp/
+
+# Node/package artifacts if the project is migrated later
+node_modules/
+dist/
+build/
+coverage/
+.env
+.env.*
+!.env.example
+
+# Google Apps Script / clasp local files are intentionally excluded
+.clasp.json
+appsscript.json
